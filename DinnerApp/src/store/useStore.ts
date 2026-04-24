@@ -16,6 +16,7 @@ type State = {
   meals: Meal[];
   restaurants: Restaurant[];
   week: Week;
+  seededIds: string[];
 };
 
 type Actions = {
@@ -33,6 +34,7 @@ type Actions = {
   clearWeek: () => void;
 
   replaceAll: (s: State) => void;
+  applySeed: (seedMeals: Meal[], seedRestaurants: Restaurant[]) => void;
 };
 
 export type Store = State & Actions;
@@ -43,6 +45,7 @@ export const useStore = create<Store>()(
       meals: [],
       restaurants: [],
       week: emptyWeek(),
+      seededIds: [],
 
       addMeal: (name, ingredients) => {
         const meal: Meal = { id: uid(), name: name.trim(), ingredients };
@@ -106,6 +109,33 @@ export const useStore = create<Store>()(
       clearWeek: () => set({ week: emptyWeek() }),
 
       replaceAll: (next) => set({ ...next }),
+      applySeed: (seedMeals, seedRestaurants) =>
+        set((s) => {
+          const seen = new Set(s.seededIds);
+          const mealIds = new Set(s.meals.map((m) => m.id));
+          const restIds = new Set(s.restaurants.map((r) => r.id));
+          const newMeals: Meal[] = [];
+          const newRests: Restaurant[] = [];
+          const newSeen: string[] = [];
+          for (const m of seedMeals) {
+            if (!seen.has(m.id)) {
+              newSeen.push(m.id);
+              if (!mealIds.has(m.id)) newMeals.push(m);
+            }
+          }
+          for (const r of seedRestaurants) {
+            if (!seen.has(r.id)) {
+              newSeen.push(r.id);
+              if (!restIds.has(r.id)) newRests.push(r);
+            }
+          }
+          if (!newMeals.length && !newRests.length && !newSeen.length) return s;
+          return {
+            meals: [...s.meals, ...newMeals],
+            restaurants: [...s.restaurants, ...newRests],
+            seededIds: [...s.seededIds, ...newSeen],
+          };
+        }),
     }),
     { name: 'dinnerwheel-v1' },
   ),
