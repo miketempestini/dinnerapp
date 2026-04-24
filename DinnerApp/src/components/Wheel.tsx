@@ -1,5 +1,5 @@
 import { motion, useMotionValue, animate } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const PALETTE = ['#fb923c', '#22c55e', '#3b82f6', '#f43f5e', '#a855f7', '#eab308', '#14b8a6', '#ec4899'];
 
@@ -10,28 +10,28 @@ type Props = {
 };
 
 export default function Wheel({ options, onLanded, spinSignal }: Props) {
-  const size = 320;
+  const size = 360;
   const radius = size / 2;
-  const n = Math.max(options.length, 1);
   const rot = useMotionValue(0);
   const [confetti, setConfetti] = useState(0);
   const [highlight, setHighlight] = useState<number | null>(null);
-  const firstRun = useRef(true);
 
   useEffect(() => {
-    if (firstRun.current) {
-      firstRun.current = false;
-      return;
-    }
+    // Only spin when the user explicitly clicks — spinSignal 0 means "not yet clicked"
+    if (spinSignal === 0) return;
     if (options.length === 0) return;
+
     const winner = Math.floor(Math.random() * options.length);
     const sliceDeg = 360 / options.length;
     const targetMid = winner * sliceDeg + sliceDeg / 2;
-    const extraRotations = 4 + Math.floor(Math.random() * 3); // 4-6
+    const extraRotations = 4 + Math.floor(Math.random() * 3);
+
+    // Account for accumulated rotation from prior spins so the wheel always
+    // lands at exactly the right slice, not just on the first spin.
     const current = rot.get();
-    // The pointer is at the top (0deg). We want the midpoint of the winner slice to end at 0.
-    // Slices are drawn starting from angle 0 going clockwise.
-    const targetAngle = 360 * extraRotations + (360 - targetMid);
+    const currentMod = ((current % 360) + 360) % 360;
+    const rawTarget = ((360 - targetMid - currentMod) % 360 + 360) % 360;
+    const targetAngle = rawTarget + 360 * extraRotations;
     const dest = current + targetAngle;
 
     const controls = animate(rot, dest, {
@@ -47,9 +47,10 @@ export default function Wheel({ options, onLanded, spinSignal }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spinSignal]);
 
-  // Build slices
-  const slices = options.length === 0 ? [{ path: '', fill: '#e5e7eb', label: '' }] : options.map((label, i) => {
-    const sliceDeg = 360 / options.length;
+  const n = Math.max(options.length, 1);
+  const sliceDeg = 360 / n;
+
+  const buildSlicePath = (i: number) => {
     const a0 = (i * sliceDeg * Math.PI) / 180;
     const a1 = ((i + 1) * sliceDeg * Math.PI) / 180;
     const x0 = radius + radius * Math.sin(a0);
@@ -57,9 +58,11 @@ export default function Wheel({ options, onLanded, spinSignal }: Props) {
     const x1 = radius + radius * Math.sin(a1);
     const y1 = radius - radius * Math.cos(a1);
     const largeArc = sliceDeg > 180 ? 1 : 0;
-    const path = `M ${radius} ${radius} L ${x0} ${y0} A ${radius} ${radius} 0 ${largeArc} 1 ${x1} ${y1} Z`;
-    return { path, fill: PALETTE[i % PALETTE.length], label };
-  });
+    return `M ${radius} ${radius} L ${x0} ${y0} A ${radius} ${radius} 0 ${largeArc} 1 ${x1} ${y1} Z`;
+  };
+
+  const fontSize = options.length <= 5 ? 13 : options.length <= 10 ? 11 : 9;
+  const maxChars = options.length <= 5 ? 20 : options.length <= 10 ? 13 : 9;
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -83,39 +86,52 @@ export default function Wheel({ options, onLanded, spinSignal }: Props) {
         style={{ rotate: rot }}
         className="drop-shadow-lg"
       >
-        {slices.map((s, i) => {
-          const sliceDeg = 360 / Math.max(options.length, 1);
-          const mid = i * sliceDeg + sliceDeg / 2;
-          const labelRadius = radius * 0.62;
-          const x = radius + labelRadius * Math.sin((mid * Math.PI) / 180);
-          const y = radius - labelRadius * Math.cos((mid * Math.PI) / 180);
-          return (
-            <g key={i}>
-              <path
-                d={s.path}
-                fill={s.fill}
-                stroke="white"
-                strokeWidth={2}
-                opacity={highlight === null || highlight === i ? 1 : 0.55}
-              />
-              {options.length > 0 && (
+        <defs>
+          {options.map((_, i) => (
+            <clipPath key={i} id={`wheel-clip-${i}`}>
+              <path d={buildSlicePath(i)} />
+            </clipPath>
+          ))}
+        </defs>
+
+        {options.length === 0 ? (
+          <circle cx={radius} cy={radius} r={radius} fill="#e5e7eb" />
+        ) : (
+          options.map((label, i) => {
+            const mid = i * sliceDeg + sliceDeg / 2;
+            const labelRadius = radius * 0.68;
+            const x = radius + labelRadius * Math.sin((mid * Math.PI) / 180);
+            const y = radius - labelRadius * Math.cos((mid * Math.PI) / 180);
+            // Radial orientation: text reads from outer rim inward, always upright.
+            // Right half: rotate(mid-90) — at mid=90 that's 0° (horizontal).
+            // Left half: rotate(mid+90) — flips 180° so text stays right-reading.
+            const radialRotation = mid < 180 ? mid - 90 : mid + 90;
+            return (
+              <g key={i} clipPath={`url(#wheel-clip-${i})`}>
+                <path
+                  d={buildSlicePath(i)}
+                  fill={PALETTE[i % PALETTE.length]}
+                  stroke="white"
+                  strokeWidth={2}
+                  opacity={highlight === null || highlight === i ? 1 : 0.55}
+                />
                 <text
                   x={x}
                   y={y}
                   fill="white"
-                  fontSize={Math.max(10, 18 - options.length * 0.6)}
+                  fontSize={fontSize}
                   fontWeight={700}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  transform={`rotate(${mid} ${x} ${y})`}
-                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.35)' }}
+                  transform={`rotate(${radialRotation} ${x} ${y})`}
+                  style={{ filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.4))' }}
                 >
-                  {truncate(s.label, options.length)}
+                  {truncate(label, maxChars)}
                 </text>
-              )}
-            </g>
-          );
-        })}
+              </g>
+            );
+          })
+        )}
         <circle cx={radius} cy={radius} r={24} fill="#fff" stroke="#fb923c" strokeWidth={4} />
       </motion.svg>
       {confetti > 0 && <Confetti key={confetti} />}
@@ -123,8 +139,7 @@ export default function Wheel({ options, onLanded, spinSignal }: Props) {
   );
 }
 
-function truncate(s: string, count: number): string {
-  const max = count <= 4 ? 22 : count <= 8 ? 14 : 10;
+function truncate(s: string, max: number): string {
   return s.length > max ? s.slice(0, max - 1) + '…' : s;
 }
 

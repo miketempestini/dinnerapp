@@ -53,6 +53,84 @@ export default function Planner() {
 
   const [activeDrag, setActiveDrag] = useState<DragId | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleQuickAdd = (dragId: DragId) => {
+    let eligibleDays = DAY_KEYS.filter((d) => !week[d].skipped && !week[d].assignment);
+
+    if (dragId.kind === 'leftover') {
+      const sourceDay = DAY_KEYS.find((d) => {
+        const a = week[d].assignment;
+        return a?.kind === 'meal' && a.mealId === dragId.sourceMealId;
+      });
+      if (sourceDay) {
+        eligibleDays = eligibleDays.filter((d) => dayIndex(d) > dayIndex(sourceDay));
+      }
+    }
+
+    if (eligibleDays.length === 0) return;
+
+    const assignment: Assignment =
+      dragId.kind === 'meal'
+        ? { kind: 'meal', mealId: dragId.mealId }
+        : dragId.kind === 'restaurant'
+        ? { kind: 'restaurant', restaurantId: dragId.restaurantId }
+        : { kind: 'leftover', sourceMealId: dragId.sourceMealId };
+
+    assignDay(eligibleDays[0], assignment);
+  };
+
+  const handlePlanForMe = () => {
+    if (meals.length === 0) return;
+
+    // Collect days that are empty and not skipped
+    const emptyDays = DAY_KEYS.filter((d) => !week[d].skipped && !week[d].assignment);
+    if (emptyDays.length === 0) return;
+
+    // Fisher-Yates shuffle for a fair random order
+    const shuffled = [...meals];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+
+    // Assign meals, repeating the shuffled list if there are more empty days than meals
+    emptyDays.forEach((day, i) => {
+      const meal = shuffled[i % shuffled.length];
+      assignDay(day, { kind: 'meal', mealId: meal.id });
+    });
+  };
+
+  const assignedCount = DAY_KEYS.filter((d) => week[d].assignment !== null && !week[d].skipped).length;
+  const canExport = assignedCount > 4;
+
+  const buildExportText = () => {
+    const byId = new Map([...meals.map((m) => [m.id, m.name] as const), ...restaurants.map((r) => [r.id, r.name] as const)]);
+    const lines = ['🍽️ This Week\'s Dinner Plan', ''];
+    DAY_KEYS.forEach((d) => {
+      const plan = week[d];
+      if (plan.skipped) {
+        lines.push(`${DAY_LABELS[d]}: Skipped`);
+      } else if (!plan.assignment) {
+        lines.push(`${DAY_LABELS[d]}: —`);
+      } else {
+        const a = plan.assignment;
+        let label = '';
+        if (a.kind === 'meal') label = byId.get(a.mealId) ?? 'Unknown';
+        else if (a.kind === 'restaurant') label = `${byId.get(a.restaurantId) ?? 'Unknown'} (Takeout)`;
+        else label = `Leftovers – ${byId.get(a.sourceMealId) ?? 'Unknown'}`;
+        lines.push(`${DAY_LABELS[d]}: ${label}`);
+      }
+      if (plan.note.trim()) lines.push(`  📝 ${plan.note.trim()}`);
+    });
+    return lines.join('\n');
+  };
+
+  const handleExport = async () => {
+    await navigator.clipboard.writeText(buildExportText());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -122,6 +200,22 @@ export default function Planner() {
           Clear Week
         </button>
         <button
+          disabled={meals.length === 0}
+          onClick={handlePlanForMe}
+          title={meals.length === 0 ? 'Add meals to Favorites first' : 'Randomly fill empty days with your saved meals'}
+          className="px-4 py-2 rounded-full text-sm font-semibold text-white bg-purple-500 hover:bg-purple-600 shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          🎲 Plan for me
+        </button>
+        {canExport && (
+          <button
+            onClick={handleExport}
+            className="px-4 py-2 rounded-full text-sm font-semibold text-white bg-sky-500 hover:bg-sky-600 shadow-soft"
+          >
+            {copied ? '✓ Copied!' : '📤 Export'}
+          </button>
+        )}
+        <button
           disabled={!canGenerateList}
           onClick={() => navigate('/shopping')}
           className="px-4 py-2 rounded-full text-sm font-semibold text-white bg-green-500 hover:bg-green-600 shadow-soft disabled:opacity-50 disabled:cursor-not-allowed"
@@ -133,10 +227,17 @@ export default function Planner() {
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
           <aside className="bg-white rounded-2xl shadow-soft border border-orange-100 p-4 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] overflow-y-auto">
+            <p className="text-xs text-slate-400 mb-3">Drag to a day, or double-tap to add to the next open day.</p>
+
             <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Meals</h3>
             <ul className="mt-2 space-y-2">
               {meals.map((m) => (
-                <DraggablePill key={m.id} id={encodeDragId({ kind: 'meal', mealId: m.id })} color="orange">
+                <DraggablePill
+                  key={m.id}
+                  id={encodeDragId({ kind: 'meal', mealId: m.id })}
+                  color="orange"
+                  onDoubleClick={() => handleQuickAdd({ kind: 'meal', mealId: m.id })}
+                >
                   🍽️ {m.name}
                 </DraggablePill>
               ))}
@@ -156,6 +257,7 @@ export default function Planner() {
                       key={t.id}
                       id={encodeDragId({ kind: 'leftover', sourceMealId: t.sourceMealId })}
                       color="amber"
+                      onDoubleClick={() => handleQuickAdd({ kind: 'leftover', sourceMealId: t.sourceMealId })}
                     >
                       ♻️ Leftovers – {t.mealName}
                     </DraggablePill>
@@ -173,6 +275,7 @@ export default function Planner() {
                   key={r.id}
                   id={encodeDragId({ kind: 'restaurant', restaurantId: r.id })}
                   color="blue"
+                  onDoubleClick={() => handleQuickAdd({ kind: 'restaurant', restaurantId: r.id })}
                 >
                   🥡 {r.name}
                 </DraggablePill>
@@ -222,26 +325,30 @@ function DraggablePill({
   id,
   color,
   children,
+  onDoubleClick,
 }: {
   id: string;
   color: 'orange' | 'blue' | 'amber';
   children: React.ReactNode;
+  onDoubleClick?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
   const palette =
     color === 'orange'
-      ? 'bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100'
+      ? 'bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100 active:bg-orange-200'
       : color === 'blue'
-      ? 'bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100'
-      : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100';
+      ? 'bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100 active:bg-blue-200'
+      : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100 active:bg-amber-200';
   return (
     <li>
       <button
         ref={setNodeRef}
         {...listeners}
         {...attributes}
+        onDoubleClick={onDoubleClick}
+        title="Double-tap to add to next open day"
         className={[
-          'w-full text-left text-sm font-medium border rounded-xl px-3 py-2 shadow-soft transition touch-none',
+          'w-full text-left text-sm font-medium border rounded-xl px-3 py-2 shadow-soft transition touch-none select-none',
           palette,
           isDragging ? 'opacity-40' : '',
         ].join(' ')}

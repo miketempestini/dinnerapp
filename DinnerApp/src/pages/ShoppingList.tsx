@@ -2,17 +2,25 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { CATEGORIES } from '../types';
-import { buildShoppingList, hasAnyCookedAssignment, shoppingListToText } from '../lib/shoppingList';
+import {
+  buildShoppingList,
+  buildWeekPlan,
+  hasAnyCookedAssignment,
+  shoppingListToText,
+  weekPlanToText,
+} from '../lib/shoppingList';
 import EmptyState from '../components/EmptyState';
 
 export default function ShoppingList() {
   const navigate = useNavigate();
   const meals = useStore((s) => s.meals);
+  const restaurants = useStore((s) => s.restaurants);
   const week = useStore((s) => s.week);
 
   const [copied, setCopied] = useState(false);
 
   const grouped = useMemo(() => buildShoppingList(week, meals), [week, meals]);
+  const weekPlan = useMemo(() => buildWeekPlan(week, meals, restaurants), [week, meals, restaurants]);
   const totalItems = CATEGORIES.reduce((t, c) => t + grouped[c].length, 0);
 
   if (!hasAnyCookedAssignment(week)) {
@@ -57,7 +65,8 @@ export default function ShoppingList() {
         <h2 className="text-2xl font-bold text-slate-800 mr-auto">Shopping List</h2>
         <button
           onClick={async () => {
-            await navigator.clipboard.writeText(shoppingListToText(grouped));
+            const text = weekPlanToText(weekPlan) + '\n\n\n🛒  Grocery List\n' + '─'.repeat(30) + '\n' + shoppingListToText(grouped);
+            await navigator.clipboard.writeText(text);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}

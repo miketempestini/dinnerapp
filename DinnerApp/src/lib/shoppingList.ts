@@ -1,4 +1,4 @@
-import { CATEGORIES, type Category, type Ingredient, type Meal, type Week, DAY_KEYS } from '../types';
+import { CATEGORIES, DAY_KEYS, DAY_LABELS, type Category, type Ingredient, type Meal, type Restaurant, type Week } from '../types';
 
 export type LineItem = {
   name: string;
@@ -110,6 +110,30 @@ export function shoppingListToText(grouped: Record<Category, LineItem[]>): strin
     lines.push('');
   });
   return lines.join('\n').trimEnd();
+}
+
+export type WeekPlanLine = { day: string; label: string; isSkipped: boolean; isEmpty: boolean };
+
+export function buildWeekPlan(week: Week, meals: Meal[], restaurants: Restaurant[]): WeekPlanLine[] {
+  const mealById = new Map(meals.map((m) => [m.id, m.name]));
+  const restById = new Map(restaurants.map((r) => [r.id, r.name]));
+  return DAY_KEYS.map((d) => {
+    const plan = week[d];
+    if (plan.skipped) return { day: DAY_LABELS[d], label: 'Skipped', isSkipped: true, isEmpty: false };
+    const a = plan.assignment;
+    if (!a) return { day: DAY_LABELS[d], label: '—', isSkipped: false, isEmpty: true };
+    let label = '';
+    if (a.kind === 'meal') label = mealById.get(a.mealId) ?? 'Unknown';
+    else if (a.kind === 'restaurant') label = `${restById.get(a.restaurantId) ?? 'Unknown'} (Takeout)`;
+    else label = `Leftovers – ${mealById.get(a.sourceMealId) ?? 'Unknown'}`;
+    return { day: DAY_LABELS[d], label, isSkipped: false, isEmpty: false };
+  });
+}
+
+export function weekPlanToText(plan: WeekPlanLine[]): string {
+  const lines = ['🍽️  This Week\'s Dinner Plan', '─'.repeat(30)];
+  plan.forEach((p) => lines.push(`${p.day}: ${p.label}`));
+  return lines.join('\n');
 }
 
 export function hasAnyCookedAssignment(week: Week): boolean {
