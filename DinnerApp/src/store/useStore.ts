@@ -17,6 +17,7 @@ type State = {
   restaurants: Restaurant[];
   week: Week;
   seededIds: string[];
+  customItems: string[];
 };
 
 type Actions = {
@@ -33,6 +34,9 @@ type Actions = {
   setSkipped: (day: DayKey, skipped: boolean) => void;
   clearWeek: () => void;
 
+  addCustomItem: (item: string) => void;
+  removeCustomItem: (index: number) => void;
+
   replaceAll: (s: State) => void;
   applySeed: (seedMeals: Meal[], seedRestaurants: Restaurant[]) => void;
 };
@@ -46,6 +50,7 @@ export const useStore = create<Store>()(
       restaurants: [],
       week: emptyWeek(),
       seededIds: [],
+      customItems: [],
 
       addMeal: (name, ingredients) => {
         const meal: Meal = { id: uid(), name: name.trim(), ingredients };
@@ -106,7 +111,12 @@ export const useStore = create<Store>()(
             [day]: { ...s.week[day], skipped, assignment: skipped ? null : s.week[day].assignment },
           },
         })),
-      clearWeek: () => set({ week: emptyWeek() }),
+      clearWeek: () => set({ week: emptyWeek(), customItems: [] }),
+
+      addCustomItem: (item) =>
+        set((s) => ({ customItems: [...s.customItems, item.trim()] })),
+      removeCustomItem: (index) =>
+        set((s) => ({ customItems: s.customItems.filter((_, i) => i !== index) })),
 
       replaceAll: (next) => set({ ...next }),
       applySeed: (seedMeals, seedRestaurants) =>

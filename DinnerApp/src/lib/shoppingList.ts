@@ -142,3 +142,8 @@ export function hasAnyCookedAssignment(week: Week): boolean {
     return a?.kind === 'meal' || a?.kind === 'leftover';
   });
 }
+
+export function customItemsToText(items: string[]): string {
+  if (!items.length) return '';
+  return '\nOther\n' + items.map((i) => `  - ${i}`).join('\n');
+}

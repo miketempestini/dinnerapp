@@ -7,6 +7,7 @@ export default function PrintView() {
   const meals = useStore((s) => s.meals);
   const restaurants = useStore((s) => s.restaurants);
   const week = useStore((s) => s.week);
+  const customItems = useStore((s) => s.customItems);
   const grouped = useMemo(() => buildShoppingList(week, meals), [week, meals]);
   const weekPlan = useMemo(() => buildWeekPlan(week, meals, restaurants), [week, meals, restaurants]);
 
@@ -58,6 +59,17 @@ export default function PrintView() {
           </section>
         );
       })}
+
+      {customItems.length > 0 && (
+        <section className="mb-5 break-inside-avoid">
+          <h3 className="text-base font-semibold border-b border-slate-200 mb-2">Other</h3>
+          <ul className="pl-5 list-disc space-y-1 text-sm">
+            {customItems.map((item, idx) => (
+              <li key={idx}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <button
         onClick={() => window.print()}
