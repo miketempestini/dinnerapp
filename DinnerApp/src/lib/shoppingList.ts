@@ -1,4 +1,4 @@
-import { CATEGORIES, DAY_KEYS, DAY_LABELS, type Category, type Ingredient, type Meal, type Restaurant, type Week } from '../types';
+import { CATEGORIES, DAY_KEYS, DAY_LABELS, type Category, type Ingredient, type Meal, type Restaurant, type SideDish, type Week } from '../types';
 
 export type LineItem = {
   name: string;
@@ -146,4 +146,23 @@ export function hasAnyCookedAssignment(week: Week): boolean {
 export function customItemsToText(items: string[]): string {
   if (!items.length) return '';
   return '\nOther\n' + items.map((i) => `  - ${i}`).join('\n');
+}
+
+export function gatherSides(week: Week, sides: SideDish[]): string[] {
+  const sideById = new Map(sides.map((s) => [s.id, s.name]));
+  const names = new Set<string>();
+  DAY_KEYS.forEach((d) => {
+    if (!week[d].skipped && week[d].sides) {
+      week[d].sides.forEach((id) => {
+        const name = sideById.get(id);
+        if (name) names.add(name);
+      });
+    }
+  });
+  return Array.from(names).sort();
+}
+
+export function sidesToText(sideNames: string[]): string {
+  if (!sideNames.length) return '';
+  return '\nSides\n' + sideNames.map((n) => `  - ${n}`).join('\n');
 }

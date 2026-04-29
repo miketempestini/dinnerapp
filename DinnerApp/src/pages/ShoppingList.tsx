@@ -6,8 +6,10 @@ import {
   buildShoppingList,
   buildWeekPlan,
   customItemsToText,
+  gatherSides,
   hasAnyCookedAssignment,
   shoppingListToText,
+  sidesToText,
   weekPlanToText,
 } from '../lib/shoppingList';
 import EmptyState from '../components/EmptyState';
@@ -16,6 +18,7 @@ export default function ShoppingList() {
   const navigate = useNavigate();
   const meals = useStore((s) => s.meals);
   const restaurants = useStore((s) => s.restaurants);
+  const sides = useStore((s) => s.sides);
   const week = useStore((s) => s.week);
   const customItems = useStore((s) => s.customItems);
   const addCustomItem = useStore((s) => s.addCustomItem);
@@ -27,6 +30,7 @@ export default function ShoppingList() {
 
   const grouped = useMemo(() => buildShoppingList(week, meals), [week, meals]);
   const weekPlan = useMemo(() => buildWeekPlan(week, meals, restaurants), [week, meals, restaurants]);
+  const sideNames = useMemo(() => gatherSides(week, sides), [week, sides]);
   const totalItems = CATEGORIES.reduce((t, c) => t + grouped[c].length, 0);
 
   if (!hasAnyCookedAssignment(week)) {
@@ -71,7 +75,7 @@ export default function ShoppingList() {
         <h2 className="text-2xl font-bold text-slate-800 mr-auto">Shopping List</h2>
         <button
           onClick={async () => {
-            const text = weekPlanToText(weekPlan) + '\n\n\n🛒  Grocery List\n' + '─'.repeat(30) + '\n' + shoppingListToText(grouped) + customItemsToText(customItems);
+            const text = weekPlanToText(weekPlan) + '\n\n\n🛒  Grocery List\n' + '─'.repeat(30) + '\n' + shoppingListToText(grouped) + sidesToText(sideNames) + customItemsToText(customItems);
             await navigator.clipboard.writeText(text);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
@@ -121,6 +125,26 @@ export default function ShoppingList() {
           );
         })}
       </div>
+
+      {/* Sides */}
+      {sideNames.length > 0 && (
+        <details open className="bg-white rounded-2xl shadow-soft border border-teal-100 p-4">
+          <summary className="cursor-pointer list-none flex items-center justify-between">
+            <h3 className="font-bold text-slate-800">Sides</h3>
+            <span className="text-xs text-slate-500">
+              {sideNames.length} item{sideNames.length !== 1 ? 's' : ''}
+            </span>
+          </summary>
+          <ul className="mt-3 space-y-1.5">
+            {sideNames.map((name, idx) => (
+              <li key={idx} className="text-sm text-slate-700 flex items-start gap-2">
+                <span aria-hidden className="text-teal-500">•</span>
+                <span className="flex-1">{name}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
 
       {/* Custom "Other" items */}
       <details open className="bg-white rounded-2xl shadow-soft border border-blue-100 p-4">

@@ -6,15 +6,17 @@ type BackupShape = {
   exportedAt: string;
   meals: Store['meals'];
   restaurants: Store['restaurants'];
+  sides: Store['sides'];
   week: Store['week'];
 };
 
-export function exportBackup(state: Pick<Store, 'meals' | 'restaurants' | 'week'>) {
+export function exportBackup(state: Pick<Store, 'meals' | 'restaurants' | 'sides' | 'week'>) {
   const payload: BackupShape = {
     version: 1,
     exportedAt: new Date().toISOString(),
     meals: state.meals,
     restaurants: state.restaurants,
+    sides: state.sides,
     week: state.week,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -31,5 +33,6 @@ export async function readBackup(file: File): Promise<BackupShape> {
   if (!Array.isArray(parsed.meals) || !Array.isArray(parsed.restaurants) || !parsed.week) {
     throw new Error('Backup file is missing required fields');
   }
-  return parsed as BackupShape;
+  // Backward compat: old backups may not have sides
+  return { ...parsed, sides: parsed.sides ?? [] } as BackupShape;
 }

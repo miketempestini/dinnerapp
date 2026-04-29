@@ -28,17 +28,20 @@ import EmptyState from '../components/EmptyState';
 type DragId =
   | { kind: 'meal'; mealId: string }
   | { kind: 'leftover'; sourceMealId: string }
-  | { kind: 'restaurant'; restaurantId: string };
+  | { kind: 'restaurant'; restaurantId: string }
+  | { kind: 'side'; sideId: string };
 
 const encodeDragId = (d: DragId): string => {
   if (d.kind === 'meal') return `meal:${d.mealId}`;
   if (d.kind === 'restaurant') return `rest:${d.restaurantId}`;
+  if (d.kind === 'side') return `side:${d.sideId}`;
   return `leftover:${d.sourceMealId}`;
 };
 const decodeDragId = (id: string): DragId | null => {
   const [kind, val] = id.split(':');
   if (kind === 'meal') return { kind: 'meal', mealId: val };
   if (kind === 'rest') return { kind: 'restaurant', restaurantId: val };
+  if (kind === 'side') return { kind: 'side', sideId: val };
   if (kind === 'leftover') return { kind: 'leftover', sourceMealId: val };
   return null;
 };
@@ -47,8 +50,10 @@ export default function Planner() {
   const navigate = useNavigate();
   const meals = useStore((s) => s.meals);
   const restaurants = useStore((s) => s.restaurants);
+  const sides = useStore((s) => s.sides);
   const week = useStore((s) => s.week);
   const assignDay = useStore((s) => s.assignDay);
+  const addSideToDay = useStore((s) => s.addSideToDay);
   const clearWeek = useStore((s) => s.clearWeek);
 
   const [activeDrag, setActiveDrag] = useState<DragId | null>(null);
@@ -56,6 +61,15 @@ export default function Planner() {
   const [copied, setCopied] = useState(false);
 
   const handleQuickAdd = (dragId: DragId) => {
+    if (dragId.kind === 'side') {
+      // Add side to the first non-skipped day that doesn't already have this side
+      const eligibleDay = DAY_KEYS.find(
+        (d) => !week[d].skipped && !week[d].sides.includes(dragId.sideId),
+      );
+      if (eligibleDay) addSideToDay(eligibleDay, dragId.sideId);
+      return;
+    }
+
     let eligibleDays = DAY_KEYS.filter((d) => !week[d].skipped && !week[d].assignment);
 
     if (dragId.kind === 'leftover') {
@@ -152,6 +166,13 @@ export default function Planner() {
     const dragId = decodeDragId(String(e.active.id));
     const dayKey = String(e.over.id) as DayKey;
     if (!dragId || !DAY_KEYS.includes(dayKey)) return;
+
+    if (dragId.kind === 'side') {
+      if (!week[dayKey].skipped) {
+        addSideToDay(dayKey, dragId.sideId);
+      }
+      return;
+    }
 
     if (dragId.kind === 'leftover') {
       // Only allow on days strictly after the source day
@@ -284,6 +305,26 @@ export default function Planner() {
                 <li className="text-xs text-slate-400 italic">No restaurants yet.</li>
               )}
             </ul>
+
+            {sides.length > 0 && (
+              <>
+                <h3 className="mt-5 text-sm font-bold text-slate-700 uppercase tracking-wide">
+                  Sides
+                </h3>
+                <ul className="mt-2 space-y-2">
+                  {sides.map((sd) => (
+                    <DraggablePill
+                      key={sd.id}
+                      id={encodeDragId({ kind: 'side', sideId: sd.id })}
+                      color="teal"
+                      onDoubleClick={() => handleQuickAdd({ kind: 'side', sideId: sd.id })}
+                    >
+                      🥗 {sd.name}
+                    </DraggablePill>
+                  ))}
+                </ul>
+              </>
+            )}
           </aside>
 
           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
@@ -295,10 +336,14 @@ export default function Planner() {
 
         <DragOverlay>
           {activeDrag ? (
-            <div className="px-3 py-2 rounded-full bg-orange-500 text-white text-sm font-semibold shadow-pop">
+            <div className={[
+              'px-3 py-2 rounded-full text-white text-sm font-semibold shadow-pop',
+              activeDrag.kind === 'side' ? 'bg-teal-500' : 'bg-orange-500',
+            ].join(' ')}>
               {activeDrag.kind === 'meal' && '🍽️ '}
               {activeDrag.kind === 'leftover' && '♻️ '}
               {activeDrag.kind === 'restaurant' && '🥡 '}
+              {activeDrag.kind === 'side' && '🥗 '}
               Dragging…
             </div>
           ) : null}
@@ -328,7 +373,7 @@ function DraggablePill({
   onDoubleClick,
 }: {
   id: string;
-  color: 'orange' | 'blue' | 'amber';
+  color: 'orange' | 'blue' | 'amber' | 'teal';
   children: React.ReactNode;
   onDoubleClick?: () => void;
 }) {
@@ -338,6 +383,8 @@ function DraggablePill({
       ? 'bg-orange-50 text-orange-900 border-orange-200 hover:bg-orange-100 active:bg-orange-200'
       : color === 'blue'
       ? 'bg-blue-50 text-blue-900 border-blue-200 hover:bg-blue-100 active:bg-blue-200'
+      : color === 'teal'
+      ? 'bg-teal-50 text-teal-900 border-teal-200 hover:bg-teal-100 active:bg-teal-200'
       : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100 active:bg-amber-200';
   return (
     <li>
@@ -363,9 +410,11 @@ function DayCard({ day, activeDrag }: { day: DayKey; activeDrag: DragId | null }
   const week = useStore((s) => s.week);
   const meals = useStore((s) => s.meals);
   const restaurants = useStore((s) => s.restaurants);
+  const allSides = useStore((s) => s.sides);
   const assignDay = useStore((s) => s.assignDay);
   const setNote = useStore((s) => s.setNote);
   const setSkipped = useStore((s) => s.setSkipped);
+  const removeSideFromDay = useStore((s) => s.removeSideFromDay);
 
   const plan = week[day];
   const idx = dayIndex(day);
@@ -437,6 +486,31 @@ function DayCard({ day, activeDrag }: { day: DayKey; activeDrag: DragId | null }
           </div>
         ) : (
           <p className="text-sm text-slate-400 italic">Drop a meal here</p>
+        )}
+
+        {/* Side dish chips */}
+        {!plan.skipped && plan.sides && plan.sides.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {plan.sides.map((sideId) => {
+              const sd = allSides.find((s) => s.id === sideId);
+              if (!sd) return null;
+              return (
+                <span
+                  key={sideId}
+                  className="inline-flex items-center gap-1 text-xs bg-teal-50 text-teal-800 border border-teal-200 rounded-full px-2 py-0.5"
+                >
+                  {sd.name}
+                  <button
+                    onClick={() => removeSideFromDay(day, sideId)}
+                    className="text-teal-500 hover:text-rose-500 font-bold leading-none"
+                    aria-label={`Remove ${sd.name}`}
+                  >
+                    ✕
+                  </button>
+                </span>
+              );
+            })}
+          </div>
         )}
       </div>
 

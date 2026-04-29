@@ -1,4 +1,4 @@
-import type { Meal, Restaurant } from '../types';
+import type { Meal, Restaurant, SideDish } from '../types';
 
 export const SEED_MEALS: Meal[] = [
   {
@@ -165,4 +165,16 @@ export const SEED_RESTAURANTS: Restaurant[] = [
   { id: 'avtfkz8vmoc6cnso', name: 'Avenue', tags: ['sit down'] },
   { id: 'ao2q65zsmoc6cr9p', name: "Crosby's", tags: ['sit down'] },
   { id: 'k3owr43amoc6dh41', name: 'Frasca', tags: ['sit down', 'italian'] },
+];
+
+export const SEED_SIDES: SideDish[] = [
+  { id: 'sd01fruit0seed001', name: 'Fruit' },
+  { id: 'sd02grbrd0seed002', name: 'Garlic Bread' },
+  { id: 'sd03mshpt0seed003', name: 'Mashed Potatoes' },
+  { id: 'sd04macch0seed004', name: 'Mac and Cheese' },
+  { id: 'sd05veggi0seed005', name: 'Veggies' },
+  { id: 'sd06rice00seed006', name: 'Rice' },
+  { id: 'sd07fries0seed007', name: 'French Fries' },
+  { id: 'sd08naan00seed008', name: 'Naan Bread' },
+  { id: 'sd09bkdpt0seed009', name: 'Baked Potatoes' },
 ];

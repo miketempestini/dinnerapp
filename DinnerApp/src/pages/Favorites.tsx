@@ -1,16 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
-import { CATEGORIES, type Category, type Ingredient, type Meal, type Restaurant } from '../types';
+import { CATEGORIES, type Category, type Ingredient, type Meal, type Restaurant, type SideDish } from '../types';
 import { useStore } from '../store/useStore';
 import EmptyState from '../components/EmptyState';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { exportBackup, readBackup } from '../lib/backup';
 
-type Tab = 'meals' | 'restaurants';
+type Tab = 'meals' | 'restaurants' | 'sides';
 
 export default function Favorites() {
   const [tab, setTab] = useState<Tab>('meals');
   const meals = useStore((s) => s.meals);
   const restaurants = useStore((s) => s.restaurants);
+  const sides = useStore((s) => s.sides);
 
   const showOnboarding = meals.length === 0 && restaurants.length === 0;
 
@@ -26,7 +27,7 @@ export default function Favorites() {
       ) : null}
 
       <div className="inline-flex rounded-full bg-white border border-orange-100 shadow-soft p-1" role="tablist">
-        {(['meals', 'restaurants'] as Tab[]).map((t) => (
+        {(['meals', 'restaurants', 'sides'] as Tab[]).map((t) => (
           <button
             key={t}
             role="tab"
@@ -42,7 +43,7 @@ export default function Favorites() {
         ))}
       </div>
 
-      {tab === 'meals' ? <MealsSection /> : <RestaurantsSection />}
+      {tab === 'meals' ? <MealsSection /> : tab === 'restaurants' ? <RestaurantsSection /> : <SidesSection />}
     </section>
   );
 }
@@ -521,12 +522,165 @@ function RestaurantEditor({
   );
 }
 
+/* ---------- Sides ---------- */
+
+function SidesSection() {
+  const sides = useStore((s) => s.sides);
+  const addSide = useStore((s) => s.addSide);
+  const updateSide = useStore((s) => s.updateSide);
+  const deleteSide = useStore((s) => s.deleteSide);
+
+  const [query, setQuery] = useState('');
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [toDelete, setToDelete] = useState<SideDish | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return sides;
+    return sides.filter((s) => s.name.toLowerCase().includes(q));
+  }, [sides, query]);
+
+  const handleAdd = () => {
+    if (newName.trim()) {
+      addSide(newName);
+      setNewName('');
+      inputRef.current?.focus();
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search sides…"
+          aria-label="Search sides"
+          className="flex-1 min-w-[180px] rounded-full bg-white border border-teal-100 px-4 py-2 text-sm shadow-soft"
+        />
+      </div>
+
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleAdd();
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Add a side dish (e.g. Garlic Bread)…"
+          className="flex-1 rounded-full bg-white border border-teal-200 px-4 py-2 text-sm shadow-soft"
+        />
+        <button
+          type="submit"
+          disabled={!newName.trim()}
+          className="px-4 py-2 rounded-full bg-teal-500 hover:bg-teal-600 text-white text-sm font-semibold shadow-soft disabled:opacity-50"
+        >
+          + Add
+        </button>
+      </form>
+
+      {filtered.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          {sides.length === 0 ? 'No side dishes yet. Add one above!' : 'No sides match that search.'}
+        </p>
+      ) : (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {filtered.map((sd) => (
+            <li key={sd.id} className="bg-white rounded-2xl shadow-soft border border-teal-100 p-4">
+              <div className="flex items-center gap-2">
+                {editingId === sd.id ? (
+                  <form
+                    className="flex-1 flex gap-2"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (editName.trim()) {
+                        updateSide(sd.id, editName);
+                        setEditingId(null);
+                      }
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="flex-1 rounded-lg border border-teal-200 px-2 py-1 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!editName.trim()}
+                      className="px-3 py-1 rounded-full text-xs font-semibold text-white bg-teal-500 hover:bg-teal-600 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    >
+                      Cancel
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <span className="flex-1 font-bold text-slate-800">{sd.name}</span>
+                    <button
+                      onClick={() => {
+                        setEditingId(sd.id);
+                        setEditName(sd.name);
+                      }}
+                      className="px-3 py-1 rounded-full text-xs font-semibold text-blue-600 hover:bg-blue-50"
+                      aria-label={`Edit ${sd.name}`}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setToDelete(sd)}
+                      className="px-3 py-1 rounded-full text-xs font-semibold text-rose-600 hover:bg-rose-50"
+                      aria-label={`Delete ${sd.name}`}
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <ConfirmDialog
+        open={!!toDelete}
+        title={`Delete "${toDelete?.name}"?`}
+        body="This will remove the side dish and clear it from any scheduled days."
+        confirmLabel="Delete"
+        danger
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => {
+          if (toDelete) deleteSide(toDelete.id);
+          setToDelete(null);
+        }}
+      />
+    </div>
+  );
+}
+
 /* ---------- Backup / Restore ---------- */
 
 function BackupButtons() {
-  const state = useStore((s) => ({ meals: s.meals, restaurants: s.restaurants, week: s.week }));
+  const state = useStore((s) => ({ meals: s.meals, restaurants: s.restaurants, sides: s.sides, week: s.week }));
   const replaceAll = useStore((s) => s.replaceAll);
-  const [pending, setPending] = useState<{ meals: any; restaurants: any; week: any } | null>(null);
+  const [pending, setPending] = useState<{ meals: any; restaurants: any; sides: any; week: any } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -553,7 +707,7 @@ function BackupButtons() {
           if (!f) return;
           try {
             const b = await readBackup(f);
-            setPending({ meals: b.meals, restaurants: b.restaurants, week: b.week });
+            setPending({ meals: b.meals, restaurants: b.restaurants, sides: b.sides, week: b.week });
           } catch (err: any) {
             alert(`Restore failed: ${err.message}`);
           } finally {

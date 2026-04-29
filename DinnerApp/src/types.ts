@@ -30,6 +30,11 @@ export type Restaurant = {
   tags: string[];
 };
 
+export type SideDish = {
+  id: string;
+  name: string;
+};
+
 export const DAY_KEYS = [
   'monday',
   'tuesday',
@@ -60,13 +65,14 @@ export type Assignment =
 
 export type DayPlan = {
   assignment: Assignment;
+  sides: string[];
   note: string;
   skipped: boolean;
 };
 
 export type Week = Record<DayKey, DayPlan>;
 
-export const EMPTY_DAY: DayPlan = { assignment: null, note: '', skipped: false };
+export const EMPTY_DAY: DayPlan = { assignment: null, sides: [], note: '', skipped: false };
 
 export const emptyWeek = (): Week =>
   DAY_KEYS.reduce((acc, k) => {
