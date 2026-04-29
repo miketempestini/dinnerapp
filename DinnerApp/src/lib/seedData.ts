@@ -87,7 +87,15 @@ export const SEED_MEALS: Meal[] = [
       { name: 'hot sauce', category: 'Condiments & Spices' },
     ],
   },
-  { id: 'fovh1wrgmoc3kda0', name: 'Alfredo Pasta', ingredients: [] },
+  {
+    id: 'fovh1wrgmoc3kda0',
+    name: 'Alfredo Pasta',
+    ingredients: [
+      { name: 'pasta', category: 'Pantry/Grains' },
+      { name: 'alfredo sauce', category: 'Other' },
+      { name: 'chicken breast', category: 'Meat & Seafood' },
+    ],
+  },
   {
     id: 'cdniee2rmoc3kix0',
     name: 'Pasta with Meat Sauce',
@@ -104,11 +112,37 @@ export const SEED_MEALS: Meal[] = [
     ingredients: [
       { name: 'tortellini', category: 'Pantry/Grains' },
       { name: 'pasta sauce', category: 'Condiments & Spices' },
+      { name: 'garlic bread', category: 'Bakery' },
     ],
   },
   { id: 'vpf93ic1moc3krv7', name: 'Sandwiches', ingredients: [] },
   { id: 'p0s167stmoc3kv68', name: 'Breakfast Dinner', ingredients: [] },
   { id: 'idcy0m63moc3kz3v', name: 'Lasagna', ingredients: [] },
+  {
+    id: '3ulstu3omojfhpr6',
+    name: 'Sloppy Joe',
+    ingredients: [
+      { name: 'Ground beef', category: 'Meat & Seafood' },
+      { name: 'Buns', category: 'Bakery' },
+      { name: 'American Cheese', category: 'Dairy' },
+    ],
+  },
+  {
+    id: 'omukpyjomojfi66h',
+    name: 'Hamburger Helper',
+    ingredients: [
+      { name: 'Ground beef', category: 'Meat & Seafood' },
+      { name: 'Hamburger Helper', category: 'Meat & Seafood' },
+    ],
+  },
+  {
+    id: '6f55sqrqmojfijz1',
+    name: 'Grilled Cheese',
+    ingredients: [
+      { name: 'Bread', category: 'Bakery' },
+      { name: 'American Cheese', category: 'Dairy' },
+    ],
+  },
 ];
 
 export const SEED_RESTAURANTS: Restaurant[] = [
