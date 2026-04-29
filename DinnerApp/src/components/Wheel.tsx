@@ -7,9 +7,10 @@ type Props = {
   options: string[];
   onLanded: (index: number) => void;
   spinSignal: number; // bumped by parent to trigger a spin
+  targetIndex?: number; // when set, land on this specific index instead of random
 };
 
-export default function Wheel({ options, onLanded, spinSignal }: Props) {
+export default function Wheel({ options, onLanded, spinSignal, targetIndex }: Props) {
   const size = 360;
   const radius = size / 2;
   const rot = useMotionValue(0);
@@ -21,7 +22,7 @@ export default function Wheel({ options, onLanded, spinSignal }: Props) {
     if (spinSignal === 0) return;
     if (options.length === 0) return;
 
-    const winner = Math.floor(Math.random() * options.length);
+    const winner = targetIndex !== undefined ? targetIndex : Math.floor(Math.random() * options.length);
     const sliceDeg = 360 / options.length;
     const targetMid = winner * sliceDeg + sliceDeg / 2;
     const extraRotations = 4 + Math.floor(Math.random() * 3);

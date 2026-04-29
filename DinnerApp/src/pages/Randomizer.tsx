@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Wheel from '../components/Wheel';
 import { useStore } from '../store/useStore';
@@ -22,6 +22,13 @@ export default function Randomizer() {
   const [winner, setWinner] = useState<Option | null>(null);
   const [spinning, setSpinning] = useState(false);
   const [pendingDay, setPendingDay] = useState<DayKey | null>(null);
+
+  // Triple-spin state
+  const [tripleMode, setTripleMode] = useState(false);
+  const [tripleResults, setTripleResults] = useState<Option[]>([]);
+  const tripleTargetsRef = useRef<number[]>([]);
+  const tripleStepRef = useRef(0);
+  const [targetIndex, setTargetIndex] = useState<number | undefined>(undefined);
 
   const options = useMemo<Option[]>(() => {
     const list: Option[] = [];
@@ -58,6 +65,66 @@ export default function Randomizer() {
 
   const disabled = options.length === 0 || spinning;
 
+  const resetTriple = () => {
+    setTripleMode(false);
+    setTripleResults([]);
+    tripleTargetsRef.current = [];
+    tripleStepRef.current = 0;
+    setTargetIndex(undefined);
+  };
+
+  const handleTripleSpin = () => {
+    // Fisher-Yates shuffle to pick 3 unique indices
+    const indices = options.map((_, i) => i);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    const targets = indices.slice(0, 3);
+    tripleTargetsRef.current = targets;
+    tripleStepRef.current = 0;
+    setTripleMode(true);
+    setTripleResults([]);
+    setWinner(null);
+    setTargetIndex(targets[0]);
+    setSpinning(true);
+    setSpinSignal((s) => s + 1);
+  };
+
+  const handleLanded = (i: number) => {
+    if (tripleMode) {
+      const step = tripleStepRef.current;
+      setTripleResults((prev) => {
+        const next = [...prev, options[i]];
+        if (next.length < 3) {
+          // Queue the next spin after a short pause
+          const nextStep = step + 1;
+          tripleStepRef.current = nextStep;
+          setTimeout(() => {
+            setTargetIndex(tripleTargetsRef.current[nextStep]);
+            setSpinSignal((s) => s + 1);
+          }, 800);
+        } else {
+          setSpinning(false);
+        }
+        return next;
+      });
+    } else {
+      setWinner(options[i] ?? null);
+      setSpinning(false);
+    }
+  };
+
+  const handleSingleSpin = () => {
+    resetTriple();
+    setWinner(null);
+    setSpinning(true);
+    setSpinSignal((s) => s + 1);
+  };
+
+  // Pick-3 screen: user picks one of the 3 results
+  const showTripleResults = tripleMode && tripleResults.length === 3 && !spinning;
+
   return (
     <section className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-800">What's for dinner?</h2>
@@ -73,6 +140,7 @@ export default function Randomizer() {
             onClick={() => {
               setMode(b.id);
               setWinner(null);
+              resetTriple();
             }}
             className={[
               'px-4 py-2 rounded-full text-sm font-bold text-white shadow-soft transition',
@@ -88,25 +156,56 @@ export default function Randomizer() {
         <Wheel
           options={options.map((o) => o.label)}
           spinSignal={spinSignal}
-          onLanded={(i) => {
-            setWinner(options[i] ?? null);
-            setSpinning(false);
-          }}
+          onLanded={handleLanded}
+          targetIndex={targetIndex}
         />
+
+        {/* Progress indicator during triple spin */}
+        {tripleMode && spinning && (
+          <p className="text-sm font-semibold text-purple-600 animate-pulse">
+            Spin {Math.min(tripleStepRef.current + 1, 3)} of 3
+          </p>
+        )}
 
         {options.length === 0 ? (
           <p className="text-sm text-slate-500 italic">No options in this mode yet.</p>
+        ) : showTripleResults ? (
+          /* Pick-3 results screen */
+          <div className="text-center bg-white rounded-2xl shadow-soft border border-purple-100 px-6 py-5 w-full max-w-sm">
+            <p className="text-xs uppercase tracking-wide text-purple-600 font-bold">Pick your favorite!</p>
+            <div className="mt-4 space-y-2">
+              {tripleResults.map((opt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setWinner(opt);
+                    resetTriple();
+                  }}
+                  className="w-full px-4 py-3 rounded-xl text-left font-semibold text-slate-800 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition shadow-sm"
+                >
+                  <span className="text-purple-500 mr-2">{idx + 1}.</span>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => {
+                resetTriple();
+                setSpinning(true);
+                setSpinSignal((s) => s + 1);
+              }}
+              className="mt-4 px-4 py-2 rounded-full text-sm font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700"
+            >
+              🔄 Start Over
+            </button>
+          </div>
         ) : winner && !spinning ? (
           <div className="text-center bg-white rounded-2xl shadow-soft border border-green-100 px-6 py-4">
             <p className="text-xs uppercase tracking-wide text-green-600 font-bold">Winner!</p>
             <p className="text-xl font-bold text-slate-800 mt-1">{winner.label}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <button
-                onClick={() => {
-                  setWinner(null);
-                  setSpinning(true);
-                  setSpinSignal((s) => s + 1);
-                }}
+                onClick={handleSingleSpin}
                 className="px-4 py-2 rounded-full text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white shadow-soft"
               >
                 🔄 Spin Again
@@ -123,19 +222,24 @@ export default function Randomizer() {
               />
             </div>
           </div>
-        ) : (
-          <button
-            disabled={disabled}
-            onClick={() => {
-              setWinner(null);
-              setSpinning(true);
-              setSpinSignal((s) => s + 1);
-            }}
-            className="px-8 py-3 rounded-full text-lg font-bold text-white bg-rose-500 hover:bg-rose-600 shadow-pop disabled:opacity-50"
-          >
-            🎯 SPIN
-          </button>
-        )}
+        ) : !tripleMode || !spinning ? (
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              disabled={disabled}
+              onClick={handleSingleSpin}
+              className="px-8 py-3 rounded-full text-lg font-bold text-white bg-rose-500 hover:bg-rose-600 shadow-pop disabled:opacity-50"
+            >
+              🎯 SPIN
+            </button>
+            <button
+              disabled={options.length < 3 || spinning}
+              onClick={handleTripleSpin}
+              className="px-6 py-3 rounded-full text-lg font-bold text-white bg-purple-500 hover:bg-purple-600 shadow-pop disabled:opacity-50"
+            >
+              🎰 3 Randoms
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <ConfirmDialog
